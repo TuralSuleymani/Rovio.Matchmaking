@@ -1,0 +1,14 @@
+global using CSharpFunctionalExtensions;
+global using FluentAssertions;
+global using NSubstitute;
+global using NSubstitute.ExceptionExtensions;
+global using Rovio.Domain.Common;
+global using Rovio.Domain.Common.Errors;
+global using Rovio.Matchmaking.Application.Abstractions;
+global using Rovio.Matchmaking.Application.Services.Implementations;
+global using Rovio.Matchmaking.Domain.Entities;
+global using Rovio.Matchmaking.Domain.Enums;
+global using Rovio.Matchmaking.Domain.ValueObjects;
+global using Rovio.Matchmaking.Tests.Data.Factories;
+global using Rovio.Matchmaking.Tests.Data.Fakes;
+global using static Rovio.Matchmaking.Tests.Data.MatchmakingTestData;

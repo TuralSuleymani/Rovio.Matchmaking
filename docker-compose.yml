@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: matchmaking
+      POSTGRES_PASSWORD: matchmaking
+      POSTGRES_DB: matchmaking
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matchmaking -d matchmaking"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=matchmaking;Username=matchmaking;Password=matchmaking
+      ConnectionStrings__Redis: redis:6379,abortConnect=false,connectTimeout=5000,syncTimeout=5000,asyncTimeout=5000
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.Worker
+    environment:
+      DOTNET_ENVIRONMENT: Docker
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=matchmaking;Username=matchmaking;Password=matchmaking
+      ConnectionStrings__Redis: redis:6379,abortConnect=false,connectTimeout=5000,syncTimeout=5000,asyncTimeout=5000
+      Matchmaking__WorkerIntervalMs: "500"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started

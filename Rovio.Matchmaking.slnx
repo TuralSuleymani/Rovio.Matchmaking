@@ -1,0 +1,32 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="docs/before-reading-the-source.md" />
+    <File Path="docs/kubernetes-deployment.md" />
+    <File Path="docs/scaling-10m-players.md" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Rovio.Matchmaking.Api/Rovio.Matchmaking.Api.csproj" />
+    <Project Path="src/Rovio.Matchmaking.Application/Rovio.Matchmaking.Application.csproj" />
+    <Project Path="src/Rovio.Matchmaking.Domain/Rovio.Matchmaking.Domain.csproj" />
+    <Project Path="src/Rovio.Matchmaking.Infrastructure/Rovio.Matchmaking.Infrastructure.csproj" />
+    <Project Path="src/Rovio.Matchmaking.Worker/Rovio.Matchmaking.Worker.csproj" />
+  </Folder>
+  <Folder Name="/src/Common/">
+    <Project Path="src/Rovio.Domain.Common/Rovio.Domain.Common.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Rovio.Matchmaking.Tests.Data/Rovio.Matchmaking.Tests.Data.csproj" />
+  </Folder>
+  <Folder Name="/tests/Integration/">
+    <Project Path="tests/Rovio.Matchmaking.Api.Tests.Integration/Rovio.Matchmaking.Api.Tests.Integration.csproj" />
+    <Project Path="tests/Rovio.Matchmaking.Infrastructure.Tests.Integration/Rovio.Matchmaking.Infrastructure.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/tests/Unit/">
+    <Project Path="tests/Rovio.Matchmaking.Application.Tests.Unit/Rovio.Matchmaking.Application.Tests.Unit.csproj" />
+    <Project Path="tests/Rovio.Matchmaking.Domain.Tests.Unit/Rovio.Matchmaking.Domain.Tests.Unit.csproj" />
+  </Folder>
+  <Folder Name="/tests/Unit/Common/">
+    <Project Path="tests/Rovio.Domain.Common.Tests.Unit/Rovio.Domain.Common.Tests.Unit.csproj" Id="6fc1892a-3bf4-4b71-9e5a-1ff50a7eb2fe" />
+  </Folder>
+</Solution>

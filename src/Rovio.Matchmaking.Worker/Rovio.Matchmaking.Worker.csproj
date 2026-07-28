@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Rovio.Matchmaking.Worker</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rovio.Matchmaking.Application\Rovio.Matchmaking.Application.csproj" />
+    <ProjectReference Include="..\Rovio.Matchmaking.Infrastructure\Rovio.Matchmaking.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

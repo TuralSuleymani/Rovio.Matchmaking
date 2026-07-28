@@ -1,0 +1,13 @@
+global using CSharpFunctionalExtensions;
+global using Microsoft.Extensions.Options;
+global using Rovio.Domain.Common;
+global using Rovio.Domain.Common.Errors;
+global using Rovio.Matchmaking.Application.Abstractions;
+global using Rovio.Matchmaking.Application.Extensions;
+global using Rovio.Matchmaking.Application.Models;
+global using Rovio.Matchmaking.Application.Models.Dtos;
+global using Rovio.Matchmaking.Application.Options;
+global using Rovio.Matchmaking.Application.Services.Contracts;
+global using Rovio.Matchmaking.Domain.Entities;
+global using Rovio.Matchmaking.Domain.Enums;
+global using Rovio.Matchmaking.Domain.ValueObjects;
