@@ -25,6 +25,7 @@ This document captures the **patterns**, **best practices**, **architectural dec
 - [Best practices applied](#best-practices-applied)
 - [Technologies used](#technologies-used)
 - [Deploying to Kubernetes](#kubernetes-deployment)
+- [Hosting on Azure](#hosting-on-azure)
 - [Project structure](#project-structure)
 - [Layer documentation](#layer-documentation)
 - [Getting started (How to run?)](#getting-started)
@@ -288,7 +289,7 @@ Dependencies point **inward**. Application never references Infrastructure; Infr
 1. **Bounded context** - Matchmaking owns queues, tickets, sessions, and game matchmaking policy; not combat, economy, or auth.
 2. **Ubiquitous language** - `GameMatchConfig`, `MatchTicket`, `GameSession`, `MatchRegion`, `LatencyPolicy`, late join, shard.
 3. **Entities** - `GameMatchConfig`, `MatchTicket`, `GameSession` with identity (`Id<T>`) and lifecycle.
-4. **Value objects** - `GameId`, `PlayerId`, `MatchRegion`, `Latency`, `LatencyDelta`, `LatencyPolicy`, `PlayerCapacity` — validated at creation, immutable.
+4. **Value objects** - `GameId`, `PlayerId`, `MatchRegion`, `Latency`, `LatencyDelta`, `LatencyPolicy`, `PlayerCapacity`  -  validated at creation, immutable.
 5. **Domain service** - `MatchingService` selects compatible ticket groups using config policy (logic that does not belong on a single entity).
 6. **Application services** - `QueueService`, `SessionService`, `GameConfigService` orchestrate use cases without owning business invariants.
 7. **Repositories / ports** - durable config via `IGameConfigRepository`; runtime via Redis-backed ports (`ITicketStore`, `ISessionStore`, …).
@@ -417,6 +418,73 @@ Check [this document](docs/kubernetes-deployment.md) to learn more about kuberne
 
 ---
 
+## Hosting on Azure
+
+This section is a **conceptual hosting map**: the same logical components as local Docker Compose and the Kubernetes guide (`api`, `worker`, `postgres`, `redis`) run on Azure managed services. Domain and Application stay unchanged; only hosts, connection strings, and platform concerns move to Azure.
+
+Sizing and regional topology remain as described in [docs/kubernetes-deployment.md](docs/kubernetes-deployment.md) and [docs/scaling-10m-players.md](docs/scaling-10m-players.md). This section names the Azure services that host each piece.
+
+### Component → Azure service
+
+| Component in this repo | Role | Azure service |
+|------------------------|------|---------------|
+| **API** (`Rovio.Matchmaking.Api`) | HTTP enqueue, cancel, poll, late join, config CRUD | **Azure Kubernetes Service (AKS)**  -  API Deployment (many replicas) |
+| **Worker** (`Rovio.Matchmaking.Worker`) | Background matching loop (`IMatchmakingEngine`) | **AKS** - separate Worker Deployment (scale independently; shard locks in Redis) |
+| **Container images** | Docker builds for API and Worker | **Azure Container Registry (ACR)** |
+| **Postgres** | Durable game matchmaking config | **Azure Database for PostgreSQL – Flexible Server** |
+| **Redis** | Queues, tickets, sessions, shard locks, projected config | **Azure Cache for Redis** (Cluster / Enterprise for high scale) |
+| **Public HTTP edge** | Clients reach the API | **Azure Front Door** and/or **Application Gateway** |
+| **API facade** (optional) | Versioning, throttling, developer portal | **Azure API Management** |
+| **Secrets / connection strings** | Postgres and Redis credentials | **Azure Key Vault** + **Managed Identity** |
+| **Health** `/health/live`, `/health/ready` | Process vs Postgres+Redis readiness | **AKS** liveness and readiness probes |
+| **Logs, metrics, traces** | Ops and diagnostics | **Azure Monitor**, **Application Insights**, **Log Analytics** |
+| **CI/CD** | Build, test, push, deploy | **GitHub Actions** or **Azure DevOps** → ACR → AKS |
+| **Multi-region** (`eu` / `na` / `asia`) | Partition by player region | Regional **AKS** clusters + **Front Door** / **Traffic Manager**; Redis and Postgres **per region** |
+
+### Azure topology
+
+```mermaid
+flowchart TB
+  Clients[Players_and_Admin]
+  Edge[Azure_Front_Door_or_App_Gateway]
+  APIM[Azure_API_Management_optional]
+
+  subgraph aks [AKS_cluster]
+    Api[Matchmaking_API]
+    Worker[Matchmaking_Worker]
+  end
+
+  Redis[(Azure_Cache_for_Redis)]
+  Pg[(Azure_Database_for_PostgreSQL)]
+  Kv[Azure_Key_Vault]
+  Mon[Azure_Monitor_App_Insights]
+  Acr[Azure_Container_Registry]
+
+  Clients --> Edge
+  Edge --> APIM
+  APIM --> Api
+  Edge --> Api
+  Api --> Redis
+  Api --> Pg
+  Worker --> Redis
+  Worker -.->|projected_config_reads| Redis
+  Api --> Kv
+  Worker --> Kv
+  Acr -->|pull_images| aks
+  Api --> Mon
+  Worker --> Mon
+```
+
+### What stays the same
+
+- **Domain** entities, value objects, and `MatchingService`  -  no Azure SDK in the domain model.
+- **Application** use cases and ports (`ITicketStore`, `ISessionStore`, `IGameConfigRuntime`, …).
+- **Redis** key model, Lua commits, and `{gameId × region}` shard locks.
+- **Worker** timer loop calling `IMatchmakingEngine.RunOnceAsync`.
+- Only **hosting**, **connection strings**, and **platform** (identity, secrets, observability, edge) change when moving to Azure.
+
+---
+
 ## Project structure
 
 ```text
@@ -502,7 +570,7 @@ dotnet test tests/Rovio.Domain.Common.Tests.Unit
 dotnet test tests/Rovio.Matchmaking.Domain.Tests.Unit
 dotnet test tests/Rovio.Matchmaking.Application.Tests.Unit
 
-# Integration (Docker required — Testcontainers starts Postgres + Redis)
+# Integration (Docker required  -  Testcontainers starts Postgres + Redis)
 dotnet test tests/Rovio.Matchmaking.Infrastructure.Tests.Integration
 dotnet test tests/Rovio.Matchmaking.Api.Tests.Integration
 ```
@@ -663,12 +731,12 @@ Enqueue a player (idempotent while the same player is still queued). The `/queue
 
 **Responses**
 
-- `201 Created` — new ticket (body = ticket; `Location` points at GET ticket)
-- `200 OK` — existing queued ticket for that player
-- `400` — invalid gameId / payload
-- `404` — game not in runtime config (`game_not_found`)
-- `429` — queue full (`queue_full`)
-- `503` — Redis unavailable (`redis_unavailable`) or game disabled path as applicable
+- `201 Created`  -  new ticket (body = ticket; `Location` points at GET ticket)
+- `200 OK`  -  existing queued ticket for that player
+- `400`  -  invalid gameId / payload
+- `404`  -  game not in runtime config (`game_not_found`)
+- `429`  -  queue full (`queue_full`)
+- `503`  -  Redis unavailable (`redis_unavailable`) or game disabled path as applicable
 
 **Response body (TicketDto)**
 
@@ -710,10 +778,10 @@ Poll a ticket.
 
 **Responses**
 
-- `200 OK` — TicketDto (same shape as enqueue)
-- `400` — invalid ids (`invalid_game_id` / `invalid_ticket_id`)
-- `404` — ticket missing or wrong game (`ticket_not_found`)
-- `503` — store unavailable
+- `200 OK`  -  TicketDto (same shape as enqueue)
+- `400`  -  invalid ids (`invalid_game_id` / `invalid_ticket_id`)
+- `404`  -  ticket missing or wrong game (`ticket_not_found`)
+- `503`  -  store unavailable
 
 ---
 
@@ -732,10 +800,10 @@ Cancel a queued ticket.
 **Responses**
 
 - `204 No Content`
-- `400` — invalid ids
-- `404` — ticket not found for game
-- `409` — `already_matched` / `already_cancelled` / `not_queued`
-- `503` — store unavailable
+- `400`  -  invalid ids
+- `404`  -  ticket not found for game
+- `409`  -  `already_matched` / `already_cancelled` / `not_queued`
+- `503`  -  store unavailable
 
 ---
 
@@ -751,10 +819,10 @@ Cancel a queued ticket.
 
 **Responses**
 
-- `200 OK` — SessionDto
-- `400` — `invalid_session_id`
-- `404` — `session_not_found`
-- `503` — store unavailable
+- `200 OK`  -  SessionDto
+- `400`  -  `invalid_session_id`
+- `404`  -  `session_not_found`
+- `503`  -  store unavailable
 
 **Response body (SessionDto)**
 
@@ -814,11 +882,11 @@ Late-join an open session (enqueues the player, then attaches them to the sessio
 
 **Responses**
 
-- `200 OK` — updated SessionDto
-- `400` — invalid session id, `region_mismatch`, validation errors
-- `404` — session / game not found
-- `409` — late join disabled, session full, ticket not queued, etc.
-- `429` / `503` — queue full or store unavailable (same as enqueue)
+- `200 OK`  -  updated SessionDto
+- `400`  -  invalid session id, `region_mismatch`, validation errors
+- `404`  -  session / game not found
+- `409`  -  late join disabled, session full, ticket not queued, etc.
+- `429` / `503`  -  queue full or store unavailable (same as enqueue)
 
 ---
 
@@ -842,7 +910,7 @@ List known game ids (from Postgres).
 ["angry-birds-2", "angry-birds-friends"]
 ```
 
-- `503` — `postgres_unavailable`
+- `503`  -  `postgres_unavailable`
 
 ---
 
@@ -856,10 +924,10 @@ List known game ids (from Postgres).
 
 **Responses**
 
-- `200 OK` — GameMatchConfigDto
-- `400` — invalid gameId
-- `404` — `game_not_found`
-- `503` — `postgres_unavailable`
+- `200 OK`  -  GameMatchConfigDto
+- `400`  -  invalid gameId
+- `404`  -  `game_not_found`
+- `503`  -  `postgres_unavailable`
 
 **Response body (GameMatchConfigDto)**
 
@@ -925,9 +993,9 @@ Upsert config in Postgres and publish to Redis.
 
 **Responses**
 
-- `200 OK` — GameMatchConfigDto
-- `400` — validation / invalid gameId
-- `503` — `postgres_unavailable` or `config_projection_failed`
+- `200 OK`  -  GameMatchConfigDto
+- `400`  -  validation / invalid gameId
+- `503`  -  `postgres_unavailable` or `config_projection_failed`
 
 ---
 
